@@ -1,0 +1,37 @@
+version: '3'
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the MCP server binary
+    cmds:
+      - go build -o server ./cmd/server
+
+  run:
+    desc: Run the MCP server
+    cmds:
+      - go run ./cmd/server
+
+  test:
+    desc: Run all tests
+    cmds:
+      - go test -v ./...
+
+  fmt:
+    desc: Format code
+    cmds:
+      - go fmt ./...
+
+  tidy:
+    desc: Tidy up module dependencies
+    cmds:
+      - go mod tidy
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -f server
