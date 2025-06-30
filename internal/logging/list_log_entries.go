@@ -14,7 +14,9 @@ import (
 )
 
 type ListLogEntriesTools struct {
-	client *Client
+	client      *Client
+	cache       *LogCache
+	rateLimiter *RateLimiter
 }
 
 type ListLogEntriesArgs struct {
@@ -37,7 +39,9 @@ type LogEntry struct {
 
 func NewListLogEntriesTools(client *Client) *ListLogEntriesTools {
 	return &ListLogEntriesTools{
-		client: client,
+		client:      client,
+		cache:       NewLogCache(),
+		rateLimiter: NewRateLimiter(),
 	}
 }
 
@@ -76,15 +80,42 @@ func (t *ListLogEntriesTools) Execute(args map[string]interface{}) (*types.CallT
 	}
 
 	if params.PageSize == 0 {
-		params.PageSize = 50
+		params.PageSize = 10
+	}
+	// Quota optimization: limit maximum page size
+	if params.PageSize > 20 {
+		params.PageSize = 20
 	}
 
 	if params.OrderBy == "" {
 		params.OrderBy = "timestamp desc"
 	}
 
+	// Check cache first
+	cacheKey := t.cache.GenerateKey(params)
+	if cachedEntries, found := t.cache.Get(cacheKey); found {
+		log.Printf("Cache hit for filter: %s", params.Filter)
+		entriesJSON, err := json.MarshalIndent(cachedEntries, "", "  ")
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal cached entries: %w", err)
+		}
+		return &types.CallToolResult{
+			Content: []types.Content{{
+				Type: "text",
+				Text: string(entriesJSON),
+			}},
+		}, nil
+	}
+
 	ctx := context.Background()
-	entries, err := t.listLogEntries(ctx, params)
+	var entries []LogEntry
+	var err error
+	
+	// Execute with rate limiting and backoff
+	err = t.rateLimiter.ExecuteWithBackoff(ctx, func() error {
+		entries, err = t.listLogEntries(ctx, params)
+		return err
+	})
 	if err != nil {
 		log.Printf("Failed to list log entries: %v", err)
 		return &types.CallToolResult{
@@ -95,6 +126,9 @@ func (t *ListLogEntriesTools) Execute(args map[string]interface{}) (*types.CallT
 			IsError: true,
 		}, nil
 	}
+
+	// Cache the results (TTL: 2 minutes)
+	t.cache.Set(cacheKey, entries, 2*time.Minute)
 
 	entriesJSON, err := json.MarshalIndent(entries, "", "  ")
 	if err != nil {
@@ -111,8 +145,12 @@ func (t *ListLogEntriesTools) Execute(args map[string]interface{}) (*types.CallT
 
 func (t *ListLogEntriesTools) listLogEntries(ctx context.Context, params ListLogEntriesArgs) ([]LogEntry, error) {
 	client := t.client.LogAdminClient()
+	
+	// Add timeout to prevent long-running queries
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
 
-	iter := client.Entries(ctx,
+	iter := client.Entries(ctxWithTimeout,
 		logadmin.Filter(params.Filter),
 		logadmin.NewestFirst(),
 	)

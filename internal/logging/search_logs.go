@@ -16,7 +16,9 @@ import (
 )
 
 type SearchLogsTool struct {
-	client *Client
+	client      *Client
+	cache       *LogCache
+	rateLimiter *RateLimiter
 }
 
 type SearchLogsArgs struct {
@@ -32,7 +34,9 @@ type SearchLogsArgs struct {
 
 func NewSearchLogsTool(client *Client) *SearchLogsTool {
 	return &SearchLogsTool{
-		client: client,
+		client:      client,
+		cache:       NewLogCache(),
+		rateLimiter: NewRateLimiter(),
 	}
 }
 
@@ -97,15 +101,48 @@ func (t *SearchLogsTool) Execute(args map[string]interface{}) (*types.CallToolRe
 	}
 
 	if params.PageSize == 0 {
-		params.PageSize = 50
+		params.PageSize = 10
+	}
+	// Quota optimization: limit maximum page size
+	if params.PageSize > 20 {
+		params.PageSize = 20
 	}
 
 	if params.OrderBy == "" {
 		params.OrderBy = "timestamp desc"
 	}
 
+	// Check cache first
+	cacheKey := t.cache.GenerateKey(params)
+	if cachedEntries, found := t.cache.Get(cacheKey); found {
+		log.Printf("Cache hit for query: %s", params.Query)
+		result := map[string]interface{}{
+			"query":   params.Query,
+			"count":   len(cachedEntries),
+			"entries": cachedEntries,
+			"cached":  true,
+		}
+		resultJSON, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal cached results: %w", err)
+		}
+		return &types.CallToolResult{
+			Content: []types.Content{{
+				Type: "text",
+				Text: string(resultJSON),
+			}},
+		}, nil
+	}
+
 	ctx := context.Background()
-	entries, err := t.searchLogs(ctx, params)
+	var entries []LogEntry
+	var err error
+	
+	// Execute with rate limiting and backoff
+	err = t.rateLimiter.ExecuteWithBackoff(ctx, func() error {
+		entries, err = t.searchLogs(ctx, params)
+		return err
+	})
 	if err != nil {
 		log.Printf("Failed to search logs: %v", err)
 		return &types.CallToolResult{
@@ -116,6 +153,14 @@ func (t *SearchLogsTool) Execute(args map[string]interface{}) (*types.CallToolRe
 			IsError: true,
 		}, nil
 	}
+
+	// Cache the results (TTL: 2 minutes for recent logs)
+	ttl := 2 * time.Minute
+	if params.StartTime != "" {
+		// Longer TTL for historical data
+		ttl = 10 * time.Minute
+	}
+	t.cache.Set(cacheKey, entries, ttl)
 
 	result := map[string]interface{}{
 		"query":   params.Query,
@@ -139,9 +184,14 @@ func (t *SearchLogsTool) Execute(args map[string]interface{}) (*types.CallToolRe
 func (t *SearchLogsTool) searchLogs(ctx context.Context, params SearchLogsArgs) ([]LogEntry, error) {
 	client := t.client.LogAdminClient()
 
-	filter := t.buildFilter(params)
+	// Build optimized filter using FilterBuilder
+	filter := t.buildOptimizedFilter(params)
 	
-	iter := client.Entries(ctx,
+	// Add timeout to prevent long-running queries
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	
+	iter := client.Entries(ctxWithTimeout,
 		logadmin.Filter(filter),
 		logadmin.NewestFirst(),
 	)
@@ -199,37 +249,64 @@ func (t *SearchLogsTool) searchLogs(ctx context.Context, params SearchLogsArgs) 
 	return entries, nil
 }
 
-func (t *SearchLogsTool) buildFilter(params SearchLogsArgs) string {
-	var filters []string
-
-	if params.StartTime != "" {
-		filters = append(filters, fmt.Sprintf(`timestamp >= "%s"`, params.StartTime))
-	}
-
-	if params.EndTime != "" {
-		filters = append(filters, fmt.Sprintf(`timestamp <= "%s"`, params.EndTime))
-	}
-
-	if params.Severity != "" {
-		filters = append(filters, fmt.Sprintf(`severity >= "%s"`, strings.ToUpper(params.Severity)))
-	}
-
+func (t *SearchLogsTool) buildOptimizedFilter(params SearchLogsArgs) string {
+	fb := NewFilterBuilder()
+	
+	// Add time constraints first (most efficient for indexing)
+	fb.AddTimeRange(params.StartTime, params.EndTime)
+	
+	// Add severity filter
+	fb.AddSeverity(params.Severity)
+	
+	// Add resource-specific filters
 	if params.Resource != "" {
-		filters = append(filters, fmt.Sprintf(`resource.type = "%s"`, params.Resource))
+		fb.filters = append(fb.filters, fmt.Sprintf(`resource.type="%s"`, params.Resource))
 	}
-
-	if params.LogName != "" {
-		filters = append(filters, fmt.Sprintf(`logName = "%s"`, params.LogName))
+	
+	// Add log name filter
+	fb.AddLogName(params.LogName)
+	
+	// Parse query for Cloud Run services and keywords
+	if params.Query != "" {
+		t.parseQueryForOptimizedFilters(params.Query, fb)
 	}
+	
+	// Add default time constraint if none specified
+	fb.AddDefaultTimeConstraint()
+	
+	return fb.Build()
+}
 
-	if len(filters) == 0 {
-		return ""
+func (t *SearchLogsTool) parseQueryForOptimizedFilters(query string, fb *FilterBuilder) {
+	query = strings.ToLower(query)
+	
+	// Extract service names (common pattern: service-name-env)
+	if strings.Contains(query, "casone") || strings.Contains(query, "tenant") || strings.Contains(query, "api") {
+		// Try to extract full service name
+		parts := strings.Fields(query)
+		for _, part := range parts {
+			if strings.Contains(part, "-") && len(part) > 5 {
+				fb.AddCloudRunService(part)
+				break
+			}
+		}
 	}
+	
+	// Add keywords for text search
+	fb.AddKeywords(query)
+}
 
-	return strings.Join(filters, " AND ")
+// Legacy method - kept for backward compatibility
+func (t *SearchLogsTool) buildFilter(params SearchLogsArgs) string {
+	return t.buildOptimizedFilter(params)
 }
 
 func (t *SearchLogsTool) matchesQuery(entry *logging.Entry, query string) bool {
+	// Skip client-side filtering if query was converted to server-side filters
+	if t.isStructuredQuery(query) {
+		return true
+	}
+	
 	query = strings.ToLower(query)
 
 	if strings.Contains(strings.ToLower(entry.LogName), query) {
@@ -257,4 +334,8 @@ func (t *SearchLogsTool) matchesQuery(entry *logging.Entry, query string) bool {
 	}
 
 	return false
+}
+
+func (t *SearchLogsTool) isStructuredQuery(query string) bool {
+	return strings.Contains(query, "service_name") || strings.Contains(query, "cloud_run")
 }
