@@ -1,17 +1,26 @@
-# gco-o11y-mcp
-MCP server for Google Cloud Observability
+# GCP Observability MCP Server
 
-This is a Model Context Protocol (MCP) server that provides access to Google Cloud Logging services through stdio communication.
+Model Context Protocol (MCP) server for Google Cloud Platform Observability
 
 ## Overview
-The server communicates via stdio (stdin/stdout) and allows AI assistants to read and search log entries from Google Cloud Logging.
+
+This project provides an MCP server that offers access to Google Cloud Logging services. It enables AI assistants to read and search log entries from Google Cloud Logging through stdio communication.
 
 ## Features
-- **list_log_entries**: List log entries with optional filtering
-- **search_logs**: Advanced log search with text queries and filters
+
+### Available Tools
+- **list_log_entries**: List log entries with optional filtering capabilities
+- **search_logs**: Advanced log search using text queries and filters
+- **preset_query**: Efficient log search with predefined optimized queries
+
+### Performance Optimizations
+- **Quota optimization**: Reduced API usage through page size limits and caching
+- **Rate limiting**: Automatic retry with exponential backoff
+- **In-memory cache**: Prevents duplicate queries (2-10 minute cache duration)
+- **Efficient filtering**: Server-side filtering reduces data transfer
 
 ## Prerequisites
-- Go 1.24+
+- Go 1.24.4+
 - Google Cloud Project with Logging API enabled
 - Service Account with appropriate permissions:
   - `logging.entries.list`
@@ -20,12 +29,12 @@ The server communicates via stdio (stdin/stdout) and allows AI assistants to rea
 ## Environment Variables
 - `GOOGLE_CLOUD_PROJECT`: Your Google Cloud Project ID (required)
 
-## Installation for Claude Code
+## Installation
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/takashabe/gco-o11y-mcp.git
-cd gco-o11y-mcp
+git clone https://github.com/takashabe/gcp-o11y-mcp.git
+cd gcp-o11y-mcp
 ```
 
 ### 2. Set up Google Cloud authentication
@@ -33,98 +42,105 @@ cd gco-o11y-mcp
 gcloud auth application-default login
 ```
 
-### 3. Configure Claude Code
-Add the following to your Claude Code configuration:
+### 3. Install dependencies
+```bash
+task tidy
+```
 
-Option 1: Using `.mcp.json` in the project directory
+### 4. MCP Configuration
+Create `.mcp.json` in the project directory:
+
 ```json
 {
   "name": "gcp-o11y",
   "description": "Google Cloud Observability MCP Server",
   "command": "go",
-  "args": ["run", "cmd/server/main.go"],
+  "args": ["run", "."],
   "env": {
     "GOOGLE_CLOUD_PROJECT": "your-project-id"
   }
 }
 ```
 
-Option 2: Build and use the binary
-```bash
-# Build the server
-task build
-
-# Update .mcp.json
-{
-  "name": "gcp-o11y",
-  "description": "Google Cloud Observability MCP Server",
-  "command": "/path/to/gco-o11y-mcp/server",
-  "env": {
-    "GOOGLE_CLOUD_PROJECT": "your-project-id"
-  }
-}
-```
-
-### 4. Restart Claude Code
+### 5. Restart Claude Code
 After configuration, restart Claude Code to load the MCP server.
+
+## Usage
+
+### Using with Claude Code
+Once the MCP server is configured and Claude Code is restarted, you can interact with Google Cloud Logging using natural language:
+
+- "Show me the latest error logs"
+- "Search for logs containing 'timeout' in the last hour"
+- "Display all ERROR severity logs from today"
+- "Find logs with authentication failure messages"
+
+### Preset Queries
+For efficient searching, the following preset queries are available:
+
+- `cloud_run_errors`: Recent errors from Cloud Run services
+- `cloud_run_service_errors`: Errors for specific Cloud Run service
+- `recent_logs`: Logs from the last hour
+- `high_severity`: Critical and error logs from the last 6 hours
+
+## Development & Testing
+
+### Available Tasks
+```bash
+# List available tasks
+task
+
+# Run tests
+task test
+
+# Format code
+task fmt
+
+# Tidy dependencies
+task tidy
+```
+
+### Manual Testing
+```bash
+# Start server
+export GOOGLE_CLOUD_PROJECT=your-project-id
+task run
+
+# Test JSON-RPC communication
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | task run
+```
 
 ## Cloud Run Deployment
 
-### Build and deploy
-```bash
-# Build and push the container
-gcloud builds submit --tag gcr.io/PROJECT_ID/gco-o11y-mcp
-
-# Deploy to Cloud Run
-gcloud run deploy gco-o11y-mcp \
-  --image gcr.io/PROJECT_ID/gco-o11y-mcp \
-  --platform managed \
-  --region us-central1 \
-  --set-env-vars GOOGLE_CLOUD_PROJECT=PROJECT_ID \
-  --allow-unauthenticated
-```
-
-### Using the config file
+### Deploy using configuration file
 ```bash
 # Update PROJECT_ID in cloudrun.yaml
 sed -i 's/PROJECT_ID/your-actual-project-id/g' cloudrun.yaml
 
-# Deploy using config
+# Deploy
 gcloud run services replace cloudrun.yaml --region us-central1
 ```
 
-## Usage in Claude Code
-
-Once the MCP server is configured and Claude Code is restarted, you can use natural language to interact with Google Cloud Logging:
-
-- "List the most recent error logs"
-- "Search for logs containing 'timeout' in the last hour"
-- "Show me all ERROR severity logs from today"
-- "Find logs with 'authentication failed' message"
-
-## Testing the Server Manually
-
-### Test stdio communication
-```bash
-# Start the server
-export GOOGLE_CLOUD_PROJECT=your-project-id
-go run cmd/server/main.go
-
-# Send initialize request
-{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}
-
-# List available tools
-{"jsonrpc":"2.0","id":2,"method":"tools/list"}
-
-# Call a tool
-{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_log_entries","arguments":{"pageSize":5}}}
-```
-
 ## Authentication
-The server uses Google Cloud default credentials. In Cloud Run, this is handled automatically via the service account. For local development, use:
+The server uses Google Cloud default credentials. For local development, run:
 
 ```bash
 gcloud auth application-default login
+```
+
+## Project Structure
+```
+.
+├── internal/
+│   ├── logging/          # Log processing logic
+│   │   ├── client.go     # Google Cloud Logging client
+│   │   ├── cache.go      # In-memory cache
+│   │   ├── ratelimit.go  # Rate limiting
+│   │   └── *.go          # Tool implementations
+│   └── mcp/              # MCP protocol implementation
+├── pkg/types/            # Type definitions
+├── Taskfile.yml         # Task definitions
+└── cloudrun.yaml        # Cloud Run configuration
 ```
 
 ## License
