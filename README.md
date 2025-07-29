@@ -58,6 +58,8 @@ go build -o bin/mcp-server ./cmd/mcp-server
 ```
 
 ### 5. MCP Configuration
+
+#### Using Built Binary
 Create `.mcp.json` in the project directory:
 
 ```json
@@ -66,6 +68,21 @@ Create `.mcp.json` in the project directory:
   "description": "Google Cloud Observability MCP Server",
   "command": "./bin/mcp-server",
   "args": ["-transport", "stdio"],
+  "env": {
+    "GOOGLE_CLOUD_PROJECT": "your-project-id"
+  }
+}
+```
+
+#### Using go run
+For development or if you prefer to run without building:
+
+```json
+{
+  "name": "gcp-o11y",
+  "description": "Google Cloud Observability MCP Server",
+  "command": "go",
+  "args": ["run", "./cmd/mcp-server", "-transport", "stdio"],
   "env": {
     "GOOGLE_CLOUD_PROJECT": "your-project-id"
   }
