@@ -28,9 +28,9 @@ type Tool struct {
 
 type Schema struct {
 	Type                 string            `json:"type"`
-	Properties          map[string]Schema `json:"properties,omitempty"`
-	Required            []string          `json:"required,omitempty"`
-	Items               *Schema           `json:"items,omitempty"`
+	Properties           map[string]Schema `json:"properties,omitempty"`
+	Required             []string          `json:"required,omitempty"`
+	Items                *Schema           `json:"items,omitempty"`
 	AdditionalProperties interface{}       `json:"additionalProperties,omitempty"`
 }
 

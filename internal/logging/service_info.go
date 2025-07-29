@@ -6,18 +6,18 @@ import (
 )
 
 type ServiceInfo struct {
-	ServiceName   string                 `json:"service_name"`
-	ProjectID     string                 `json:"project_id"`
-	Location      string                 `json:"location"`
-	RevisionName  string                 `json:"revision_name"`
-	InstanceID    string                 `json:"instance_id"`
-	Timestamp     time.Time              `json:"timestamp"`
-	Severity      string                 `json:"severity"`
-	Message       string                 `json:"message"`
-	Labels        map[string]string      `json:"labels,omitempty"`
-	JSONPayload   map[string]interface{} `json:"json_payload,omitempty"`
-	TraceID       string                 `json:"trace_id,omitempty"`
-	SpanID        string                 `json:"span_id,omitempty"`
+	ServiceName  string                 `json:"service_name"`
+	ProjectID    string                 `json:"project_id"`
+	Location     string                 `json:"location"`
+	RevisionName string                 `json:"revision_name"`
+	InstanceID   string                 `json:"instance_id"`
+	Timestamp    time.Time              `json:"timestamp"`
+	Severity     string                 `json:"severity"`
+	Message      string                 `json:"message"`
+	Labels       map[string]string      `json:"labels,omitempty"`
+	JSONPayload  map[string]interface{} `json:"json_payload,omitempty"`
+	TraceID      string                 `json:"trace_id,omitempty"`
+	SpanID       string                 `json:"span_id,omitempty"`
 }
 
 func ExtractServiceInfoFromLogEntry(entry LogEntry) *ServiceInfo {
@@ -57,7 +57,7 @@ func ExtractServiceInfoFromLogEntry(entry LogEntry) *ServiceInfo {
 		info.Message = entry.TextPayload
 	} else if entry.JSONPayload != nil {
 		info.JSONPayload = entry.JSONPayload
-		
+
 		// Try to extract message from common JSON fields
 		if message, ok := entry.JSONPayload["message"].(string); ok {
 			info.Message = message
@@ -91,10 +91,10 @@ func (si *ServiceInfo) ToLogEntry() LogEntry {
 	entry.Resource = map[string]interface{}{
 		"type": "cloud_run_revision",
 		"labels": map[string]interface{}{
-			"service_name":   si.ServiceName,
-			"project_id":     si.ProjectID,
-			"location":       si.Location,
-			"revision_name":  si.RevisionName,
+			"service_name":  si.ServiceName,
+			"project_id":    si.ProjectID,
+			"location":      si.Location,
+			"revision_name": si.RevisionName,
 		},
 	}
 

@@ -4,7 +4,12 @@ Model Context Protocol (MCP) server for Google Cloud Platform Observability
 
 ## Overview
 
-This project provides an MCP server that offers access to Google Cloud Logging services. It enables AI assistants to read and search log entries from Google Cloud Logging through stdio communication.
+This project provides an MCP server that offers access to Google Cloud Logging services. It enables AI assistants to read and search log entries from Google Cloud Logging through multiple transport protocols including stdio and Streamable HTTP.
+
+### Supported Transports
+
+- **stdio**: Standard input/output communication (default)
+- **streamable-http**: HTTP-based transport (future implementation)
 
 ## Features
 
@@ -47,22 +52,27 @@ gcloud auth application-default login
 task tidy
 ```
 
-### 4. MCP Configuration
+### 4. Build the server
+```bash
+go build -o bin/mcp-server ./cmd/mcp-server
+```
+
+### 5. MCP Configuration
 Create `.mcp.json` in the project directory:
 
 ```json
 {
   "name": "gcp-o11y",
   "description": "Google Cloud Observability MCP Server",
-  "command": "go",
-  "args": ["run", "."],
+  "command": "./bin/mcp-server",
+  "args": ["-transport", "stdio"],
   "env": {
     "GOOGLE_CLOUD_PROJECT": "your-project-id"
   }
 }
 ```
 
-### 5. Restart Claude Code
+### 6. Restart Claude Code
 After configuration, restart Claude Code to load the MCP server.
 
 ## Usage
@@ -102,12 +112,15 @@ task tidy
 
 ### Manual Testing
 ```bash
-# Start server
+# Start stdio server
 export GOOGLE_CLOUD_PROJECT=your-project-id
-task run
+./bin/mcp-server -transport stdio
+
+# Start HTTP server (when implemented)
+./bin/mcp-server -transport streamable-http -addr :8080
 
 # Test JSON-RPC communication
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | task run
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | ./bin/mcp-server
 ```
 
 ## Cloud Run Deployment
@@ -131,13 +144,15 @@ gcloud auth application-default login
 ## Project Structure
 ```
 .
+├── cmd/mcp-server/       # Main server executable
 ├── internal/
 │   ├── logging/          # Log processing logic
 │   │   ├── client.go     # Google Cloud Logging client
 │   │   ├── cache.go      # In-memory cache
 │   │   ├── ratelimit.go  # Rate limiting
 │   │   └── *.go          # Tool implementations
-│   └── mcp/              # MCP protocol implementation
+│   ├── server/           # MCP server implementation
+│   └── transport/        # Transport layer abstraction
 ├── pkg/types/            # Type definitions
 ├── Taskfile.yml         # Task definitions
 └── cloudrun.yaml        # Cloud Run configuration

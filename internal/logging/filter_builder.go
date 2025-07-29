@@ -54,7 +54,7 @@ func (fb *FilterBuilder) AddKeywords(keywords string) *FilterBuilder {
 		if strings.Contains(keywords, "error") || strings.Contains(keywords, "ERROR") {
 			fb.filters = append(fb.filters, `severity >= ERROR`)
 		}
-		
+
 		// For text search, use textPayload or jsonPayload
 		keywordFilter := fmt.Sprintf(`(textPayload:"%s" OR jsonPayload.message:"%s")`, keywords, keywords)
 		fb.filters = append(fb.filters, keywordFilter)
@@ -71,7 +71,7 @@ func (fb *FilterBuilder) AddDefaultTimeConstraint() *FilterBuilder {
 			break
 		}
 	}
-	
+
 	if !hasTimeFilter {
 		defaultStart := time.Now().Add(-24 * time.Hour).Format(time.RFC3339)
 		fb.filters = append(fb.filters, fmt.Sprintf(`timestamp >= "%s"`, defaultStart))

@@ -20,7 +20,7 @@ var CommonPresetQueries = map[string]PresetQuery{
 		PageSize:    10,
 	},
 	"cloud_run_service_errors": {
-		Name:        "cloud_run_service_errors", 
+		Name:        "cloud_run_service_errors",
 		Description: "Get errors for specific Cloud Run service",
 		Filter:      `resource.type="cloud_run_revision" AND resource.labels.service_name="%s" AND severity>=ERROR AND timestamp>="%s"`,
 		PageSize:    15,
@@ -44,13 +44,13 @@ func GetPresetQuery(queryName string, params ...string) (string, int, error) {
 	if !exists {
 		return "", 0, fmt.Errorf("preset query '%s' not found", queryName)
 	}
-	
+
 	switch queryName {
 	case "cloud_run_errors":
 		defaultTime := time.Now().Add(-1 * time.Hour).Format(time.RFC3339)
 		filter := fmt.Sprintf(preset.Filter, defaultTime)
 		return filter, preset.PageSize, nil
-		
+
 	case "cloud_run_service_errors":
 		if len(params) < 1 {
 			return "", 0, fmt.Errorf("service name parameter required for cloud_run_service_errors")
@@ -59,17 +59,17 @@ func GetPresetQuery(queryName string, params ...string) (string, int, error) {
 		defaultTime := time.Now().Add(-2 * time.Hour).Format(time.RFC3339)
 		filter := fmt.Sprintf(preset.Filter, serviceName, defaultTime)
 		return filter, preset.PageSize, nil
-		
+
 	case "recent_logs":
 		defaultTime := time.Now().Add(-1 * time.Hour).Format(time.RFC3339)
 		filter := fmt.Sprintf(preset.Filter, defaultTime)
 		return filter, preset.PageSize, nil
-		
+
 	case "high_severity":
 		defaultTime := time.Now().Add(-6 * time.Hour).Format(time.RFC3339)
 		filter := fmt.Sprintf(preset.Filter, defaultTime)
 		return filter, preset.PageSize, nil
-		
+
 	default:
 		return preset.Filter, preset.PageSize, nil
 	}
