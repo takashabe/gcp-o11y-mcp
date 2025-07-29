@@ -26,4 +26,4 @@ go.work.sum
 
 # Build artifacts
 server
-/server
+/serverbin/
