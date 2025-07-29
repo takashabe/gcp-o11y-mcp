@@ -24,6 +24,24 @@ go.work.sum
 # macOS
 .DS_Store
 
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
 # Build artifacts
-server
-/serverbin/
+bin/
+mcp-server
+
+# Coverage reports
+coverage.out
+coverage.html
+
+# Temporary files
+tmp/
+temp/
