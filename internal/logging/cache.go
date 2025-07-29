@@ -22,33 +22,33 @@ func NewLogCache() *LogCache {
 	cache := &LogCache{
 		cache: make(map[string]*CacheEntry),
 	}
-	
+
 	// Start cleanup routine
 	go cache.cleanup()
-	
+
 	return cache
 }
 
 func (c *LogCache) Get(key string) ([]LogEntry, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	entry, exists := c.cache[key]
 	if !exists {
 		return nil, false
 	}
-	
+
 	if time.Since(entry.Timestamp) > entry.TTL {
 		return nil, false
 	}
-	
+
 	return entry.Data, true
 }
 
 func (c *LogCache) Set(key string, data []LogEntry, ttl time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	c.cache[key] = &CacheEntry{
 		Data:      data,
 		Timestamp: time.Now(),
@@ -64,7 +64,7 @@ func (c *LogCache) GenerateKey(params interface{}) string {
 func (c *LogCache) cleanup() {
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
-	
+
 	for range ticker.C {
 		c.mu.Lock()
 		now := time.Now()

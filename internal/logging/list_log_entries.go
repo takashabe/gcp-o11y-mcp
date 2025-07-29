@@ -110,7 +110,7 @@ func (t *ListLogEntriesTools) Execute(args map[string]interface{}) (*types.CallT
 	ctx := context.Background()
 	var entries []LogEntry
 	var err error
-	
+
 	// Execute with rate limiting and backoff
 	err = t.rateLimiter.ExecuteWithBackoff(ctx, func() error {
 		entries, err = t.listLogEntries(ctx, params)
@@ -145,7 +145,7 @@ func (t *ListLogEntriesTools) Execute(args map[string]interface{}) (*types.CallT
 
 func (t *ListLogEntriesTools) listLogEntries(ctx context.Context, params ListLogEntriesArgs) ([]LogEntry, error) {
 	client := t.client.LogAdminClient()
-	
+
 	// Add timeout to prevent long-running queries
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()

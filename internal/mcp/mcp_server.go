@@ -53,7 +53,7 @@ func (s *MCPServer) HandleRequest(request map[string]interface{}) interface{} {
 
 func (s *MCPServer) handleInitialize(id interface{}, request map[string]interface{}) interface{} {
 	log.Printf("Handling initialize request")
-	
+
 	params, _ := request["params"].(map[string]interface{})
 	var clientInfo map[string]interface{}
 	if params != nil {
@@ -80,7 +80,7 @@ func (s *MCPServer) handleInitialize(id interface{}, request map[string]interfac
 
 func (s *MCPServer) handleListTools(id interface{}) interface{} {
 	log.Printf("Handling tools/list request")
-	
+
 	var tools []map[string]interface{}
 	for _, tool := range s.tools {
 		toolDef := map[string]interface{}{

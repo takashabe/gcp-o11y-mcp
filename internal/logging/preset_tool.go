@@ -16,8 +16,8 @@ type PresetQueryTool struct {
 }
 
 type PresetQueryArgs struct {
-	QueryName   string   `json:"queryName"`
-	Parameters  []string `json:"parameters,omitempty"`
+	QueryName  string   `json:"queryName"`
+	Parameters []string `json:"parameters,omitempty"`
 }
 
 func NewPresetQueryTool(client *Client) *PresetQueryTool {
@@ -50,7 +50,7 @@ func (t *PresetQueryTool) Schema() types.Schema {
 				},
 			},
 		},
-		Required: []string{"queryName"},
+		Required:             []string{"queryName"},
 		AdditionalProperties: false,
 	}
 }

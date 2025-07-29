@@ -22,14 +22,14 @@ type SearchLogsTool struct {
 }
 
 type SearchLogsArgs struct {
-	Query      string `json:"query"`
-	StartTime  string `json:"startTime,omitempty"`
-	EndTime    string `json:"endTime,omitempty"`
-	Severity   string `json:"severity,omitempty"`
-	Resource   string `json:"resource,omitempty"`
-	LogName    string `json:"logName,omitempty"`
-	PageSize   int    `json:"pageSize,omitempty"`
-	OrderBy    string `json:"orderBy,omitempty"`
+	Query     string `json:"query"`
+	StartTime string `json:"startTime,omitempty"`
+	EndTime   string `json:"endTime,omitempty"`
+	Severity  string `json:"severity,omitempty"`
+	Resource  string `json:"resource,omitempty"`
+	LogName   string `json:"logName,omitempty"`
+	PageSize  int    `json:"pageSize,omitempty"`
+	OrderBy   string `json:"orderBy,omitempty"`
 }
 
 func NewSearchLogsTool(client *Client) *SearchLogsTool {
@@ -77,7 +77,7 @@ func (t *SearchLogsTool) Schema() types.Schema {
 				Type: "string",
 			},
 		},
-		Required: []string{"query"},
+		Required:             []string{"query"},
 		AdditionalProperties: false,
 	}
 }
@@ -137,7 +137,7 @@ func (t *SearchLogsTool) Execute(args map[string]interface{}) (*types.CallToolRe
 	ctx := context.Background()
 	var entries []LogEntry
 	var err error
-	
+
 	// Execute with rate limiting and backoff
 	err = t.rateLimiter.ExecuteWithBackoff(ctx, func() error {
 		entries, err = t.searchLogs(ctx, params)
@@ -186,11 +186,11 @@ func (t *SearchLogsTool) searchLogs(ctx context.Context, params SearchLogsArgs) 
 
 	// Build optimized filter using FilterBuilder
 	filter := t.buildOptimizedFilter(params)
-	
+
 	// Add timeout to prevent long-running queries
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	
+
 	iter := client.Entries(ctxWithTimeout,
 		logadmin.Filter(filter),
 		logadmin.NewestFirst(),
@@ -251,35 +251,35 @@ func (t *SearchLogsTool) searchLogs(ctx context.Context, params SearchLogsArgs) 
 
 func (t *SearchLogsTool) buildOptimizedFilter(params SearchLogsArgs) string {
 	fb := NewFilterBuilder()
-	
+
 	// Add time constraints first (most efficient for indexing)
 	fb.AddTimeRange(params.StartTime, params.EndTime)
-	
+
 	// Add severity filter
 	fb.AddSeverity(params.Severity)
-	
+
 	// Add resource-specific filters
 	if params.Resource != "" {
 		fb.filters = append(fb.filters, fmt.Sprintf(`resource.type="%s"`, params.Resource))
 	}
-	
+
 	// Add log name filter
 	fb.AddLogName(params.LogName)
-	
+
 	// Parse query for Cloud Run services and keywords
 	if params.Query != "" {
 		t.parseQueryForOptimizedFilters(params.Query, fb)
 	}
-	
+
 	// Add default time constraint if none specified
 	fb.AddDefaultTimeConstraint()
-	
+
 	return fb.Build()
 }
 
 func (t *SearchLogsTool) parseQueryForOptimizedFilters(query string, fb *FilterBuilder) {
 	query = strings.ToLower(query)
-	
+
 	// Extract service names (common pattern: service-name-env)
 	if strings.Contains(query, "casone") || strings.Contains(query, "tenant") || strings.Contains(query, "api") {
 		// Try to extract full service name
@@ -291,7 +291,7 @@ func (t *SearchLogsTool) parseQueryForOptimizedFilters(query string, fb *FilterB
 			}
 		}
 	}
-	
+
 	// Add keywords for text search
 	fb.AddKeywords(query)
 }
@@ -306,7 +306,7 @@ func (t *SearchLogsTool) matchesQuery(entry *logging.Entry, query string) bool {
 	if t.isStructuredQuery(query) {
 		return true
 	}
-	
+
 	query = strings.ToLower(query)
 
 	if strings.Contains(strings.ToLower(entry.LogName), query) {
